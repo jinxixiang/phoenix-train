@@ -1,0 +1,11 @@
+assets/
+outputs/
+data/
+logs/
+__pycache__/
+*.pyc
+*.ckpt
+*.pth
+*.h5
+*.npz
+lightning_logs/

@@ -1,0 +1,11 @@
+# plus: pip install git+https://github.com/peng-lab/phoenix.git
+torch>=2.3
+pytorch-lightning>=2.0
+timm>=1.0
+numpy
+scipy
+pandas
+h5py
+anndata
+tifffile
+zarr<3
