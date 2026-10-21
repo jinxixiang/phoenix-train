@@ -26,8 +26,11 @@ the `phoenix` package.
 
 ## Installation
 
+The repository is self-contained: the upstream `phoenix` package is vendored
+under `src/phoenix` (unmodified, under its own licence, see
+`src/phoenix/VENDORED.md`) and is put on `sys.path` by `finetune/common.py`.
+
 ```bash
-pip install git+https://github.com/peng-lab/phoenix.git
 pip install -r requirements.txt
 ```
 
@@ -79,9 +82,10 @@ python evaluate.py --cohort <cohort>                 # ODE sampling on held-out 
 python compute_pcc.py --cohort <cohort>              # Pearson metrics from the saved predictions
 ```
 
-`slurm/` holds the SLURM launchers used for the paper (`extract.sbatch` array
-per slide, `train.sbatch` train + evaluate, `spatch.sbatch` extract → train →
-evaluate for several single-slide cohorts, resumable).
+Each step is a plain Python script, so it can be wrapped in whatever job
+scheduler is available. Feature extraction is independent per slide and
+training is one GPU per cohort; `train.py` resumes from `last.ckpt` if a run
+directory already holds one.
 
 Utilities: `export_ckpt.py` scores a run that is still training from its latest
 checkpoint into a separate directory; `verify_features.py` checks cached
@@ -112,7 +116,7 @@ available but scores lower.
 | `PHOENIX_SPATCH_DIR` | `$ROOT/data/SPATCH` | SPATCH WSIs |
 | `PHOENIX_ASSETS` | `$ROOT/assets` | base checkpoint and panel |
 | `PHOENIX_OUTPUTS` | `$ROOT/outputs` | panels, cached features, runs |
-| `PHOENIX_SRC` | unset | use a Phoenix source checkout instead of the installed package |
+| `PHOENIX_SRC` | `$ROOT/src` | location of the `phoenix` package (vendored by default) |
 
 ## Reproducing the benchmark
 
@@ -124,7 +128,7 @@ including feature extraction and sampling.
 
 ## Licence
 
-The code in this repository is released under the MIT licence. It depends on
-the `phoenix` package and weights, which are distributed by their authors under
-the PolyForm Noncommercial License 1.0.0; those terms apply to any use of the
-Phoenix model.
+The code under `finetune/` is released under the MIT licence (`LICENSE`). The
+vendored `src/phoenix` package and the Phoenix weights are distributed by their
+authors under the PolyForm Noncommercial License 1.0.0
+(`src/phoenix/LICENSE`); those terms apply to any use of the Phoenix model.

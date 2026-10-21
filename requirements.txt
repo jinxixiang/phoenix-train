@@ -1,4 +1,4 @@
-# plus: pip install git+https://github.com/peng-lab/phoenix.git
+# the phoenix package itself is vendored under src/
 torch>=2.3
 pytorch-lightning>=2.0
 timm>=1.0
@@ -9,3 +9,4 @@ h5py
 anndata
 tifffile
 zarr<3
+pyyaml

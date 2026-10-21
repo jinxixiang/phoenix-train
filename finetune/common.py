@@ -28,11 +28,10 @@ PHOENIX_DIR = os.environ.get(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 )
 
-# `import phoenix` normally resolves to the pip-installed package
-# (pip install git+https://github.com/peng-lab/phoenix.git). Set PHOENIX_SRC to
-# use a source checkout instead (the directory containing `phoenix/`).
-if os.environ.get("PHOENIX_SRC"):
-    sys.path.insert(0, os.environ["PHOENIX_SRC"])
+# The upstream `phoenix` package is vendored under src/ (see src/phoenix/VENDORED.md)
+# so no separate install is needed. Set PHOENIX_SRC to point at a different
+# checkout (the directory containing `phoenix/`).
+sys.path.insert(0, os.environ.get("PHOENIX_SRC", f"{PHOENIX_DIR}/src"))
 
 # Packed cohorts (`<cohort>/<slide>.h5`, `splits.json`); see README "Data format".
 COHORT_DIR = os.environ.get("PHOENIX_COHORT_DIR", f"{PHOENIX_DIR}/data/finetune_sc")
