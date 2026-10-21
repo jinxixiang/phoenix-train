@@ -5,8 +5,7 @@ single-cell spatial transcriptomics cohorts. This produced the Phoenix baseline
 of the STORM single-cell benchmark.
 
 The Phoenix release has no trainer for its flow transformer. This repository
-adds one (conditional flow matching), plus feature caching, new-panel
-adaptation, ODE sampling and scoring. Phoenix itself is vendored unmodified in
+adds one (conditional flow matching). Phoenix itself is vendored unmodified in
 `src/phoenix`.
 
 ## Method
