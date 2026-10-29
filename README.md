@@ -17,8 +17,12 @@ adds one (conditional flow matching). Phoenix itself is vendored unmodified in
   30 epochs, bf16.
 - **New gene panels**: embeddings of genes shared with the pretrained panel are
   kept; the rest are resampled from the pretrained distribution.
-- **Targets**: `log1p(raw counts)`, z-scored per gene on the training split.
-- **Inference**: 50-step Heun ODE solver, one sample per cell.
+- **Panel**: the cohort's ST-Bench HVG-200 list (`STBENCH_SC_HVG`); `build_panels.py`
+  asserts exactly 200 genes, all measured on every slide.
+- **Targets**: `log1p(CP100)` (counts scaled to 100 per cell over the full pack
+  panel, as the ST-Bench ground truth), z-scored per gene on the training split.
+- **Inference**: the released `FlowPipeline` (DOPRI5, atol=rtol=0.1, clip at 0),
+  fixed seed.
 
 ## Setup
 
@@ -59,8 +63,8 @@ python compute_pcc.py --cohort <cohort>
 ```
 
 `aggregate_stbench_sc.py` scores predictions with the ST-Bench metrics
-(Pearson, Spearman, SSIM). Set `STBENCH_SC_GT_ROOT`, `STBENCH_SC_IDS` and
-`STBENCH_SC_OUT`.
+(Pearson, Spearman, SSIM). Set `STBENCH_SC_GT_ROOT`, `STBENCH_SC_IDS`,
+`STBENCH_SC_HVG` and `STBENCH_SC_OUT`.
 
 A 25k-cell cohort takes about two hours on one 48 GB GPU.
 

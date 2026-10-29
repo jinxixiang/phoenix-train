@@ -2,8 +2,8 @@
 Dataset over the cached image conditions and their expression targets.
 
 Image features are read lazily from the per-slide HDF5 caches (one chunk per
-cell); counts are small enough to keep in memory and are turned into Phoenix
-targets on the fly: ``x1 = (log1p(counts) - mean) / std``.
+cell); targets are small enough to keep in memory:
+``x1 = (log1p(CP100) - mean) / std`` on the cohort panel (`common.load_target`).
 """
 
 import h5py
@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from common import cell_mask, feature_file
+from common import cell_mask, feature_file, load_panel, load_target
 
 # -------------------------------------------------------------------------------
 
@@ -31,17 +31,19 @@ class CellDataset(Dataset):
         self.paths = [feature_file(cohort, s) for s in slides]
         self.handles: list[h5py.File | None] = [None] * len(self.paths)
 
-        counts, index = [], []
+        genes = load_panel(cohort)["genes"]
+        targets, index = [], []
         for slide, (sid, path) in enumerate(zip(slides, self.paths)):
             with h5py.File(path, "r") as fh:
-                slide_counts = fh["counts"][:]
+                cell_id = fh["cell_id"][:]
+            slide_target = load_target(cohort, sid, genes, cell_id)
             mask = cell_mask(cohort, sid, part)
-            rows = np.arange(len(slide_counts)) if mask is None else np.flatnonzero(mask)
-            counts.append(slide_counts[rows])
+            rows = np.arange(len(slide_target)) if mask is None else np.flatnonzero(mask)
+            targets.append(slide_target[rows])
             index += [(slide, int(i)) for i in rows]
         self.index = np.asarray(index, dtype=np.int64)
 
-        expr = np.log1p(np.concatenate(counts).astype(np.float32))
+        expr = np.concatenate(targets)
         self.target = ((expr - mean[None]) / std[None]).astype(np.float32)
 
     def __len__(self) -> int:

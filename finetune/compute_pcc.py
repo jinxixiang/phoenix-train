@@ -5,7 +5,7 @@ Pearson metrics for a finished run, from the saved `pred_<slide>.npz` files.
 same quantities and the same log1p scale, so the two are directly comparable,
 and needs no GPU: `pred_<slide>.npz` already stores `pred` and `true`.
 
-Definitions (all on log1p(counts)):
+Definitions (all on log1p(CP100), the training target):
   per-gene    Pearson across cells, one value per gene -> median / mean.
               This is the "PCC" that ST-prediction papers usually quote.
   per-cell    Pearson across genes, one value per cell -> median.

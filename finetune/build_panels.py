@@ -1,8 +1,9 @@
 """
 Define the target gene panel of each finetuning cohort.
 
-A cohort panel is the intersection of the per-slide panels (one lung slide,
-NCBI859, is missing a gene), kept in the order of the first training slide.
+A cohort panel is the ST-Bench HVG-200 list of that cohort (`HVG_PANEL`), in
+list order. Every slide must measure all 200 genes, and the panel must have
+exactly 200: a model on any other panel is not comparable to the benchmark.
 
 Phoenix encodes gene identity purely positionally: token `i` is embedded with
 row `i` of `px_embedding`. Finetuning on a new panel therefore means deciding,
@@ -17,9 +18,10 @@ import json
 
 from common import (
     COHORTS,
+    HVG_PANEL,
+    N_HVG,
     ensure_dir,
     load_base_panel,
-    load_splits,
     panel_file,
     read_genes,
     slide_ids,
@@ -29,19 +31,20 @@ from common import (
 
 
 def build(cohort: str) -> dict:
-    """Intersect the per-slide panels and map each slot onto the pretrained panel."""
-    ids = slide_ids(cohort)
-    per_slide = {s: read_genes(cohort, s) for s in ids}
+    """Take the cohort's HVG-200 list and map each slot onto the pretrained panel."""
+    with open(HVG_PANEL.format(cohort=cohort)) as fh:
+        genes = [str(g) for g in json.load(fh)["genes"]]
+    assert len(genes) == N_HVG == len(set(genes)), \
+        f"{cohort}: HVG panel has {len(genes)} genes ({len(set(genes))} unique), expected {N_HVG}"
 
-    first = per_slide[load_splits(cohort)["train"][0]]
-    shared = set.intersection(*(set(g) for g in per_slide.values()))
-    genes = [g for g in first if g in shared]
+    ids = slide_ids(cohort)
+    for s in ids:
+        missing = sorted(set(genes) - set(read_genes(cohort, s)))
+        assert not missing, f"{cohort}/{s}: {len(missing)} HVG genes not measured: {missing[:5]}"
 
     base = load_base_panel()
     base_pos = {g: i for i, g in enumerate(base)}
     warm = [base_pos.get(g, -1) for g in genes]
-
-    dropped = {s: sorted(set(g) - shared) for s, g in per_slide.items()}
     return {
         "cohort": cohort,
         "genes": genes,
@@ -51,7 +54,6 @@ def build(cohort: str) -> dict:
         "base_panel": "xenium_human_multi",
         "n_base_panel": len(base),
         "slides": ids,
-        "dropped_per_slide": {s: d for s, d in dropped.items() if d},
     }
 
 
@@ -66,8 +68,6 @@ def main(cohorts: list[str]) -> None:
             f"{panel['n_genes'] - panel['n_warm_start']} re-initialized), "
             f"{len(panel['slides'])} slides"
         )
-        for slide, genes in panel["dropped_per_slide"].items():
-            print(f"   dropped from {slide}: {genes}")
 
 
 if __name__ == "__main__":

@@ -8,30 +8,18 @@ this pipeline:
   * test slides come from `ST-Bench/input/storm_sc_hvg200/<bench>/ids.csv`
     (fold 0), never from a directory listing,
   * ground truth is `stpbench/sc_hvg200/<bench>/st/<slide>.h5ad`, and the
-    scored target is `log1p(GT.X)` -- which is **CP100-normalized** expression
-    (asserted below: `log1p(GT.X)` equals the pack's `expr`), not log1p of raw
-    counts,
+    scored target is `log1p(GT.X)` -- CP100-normalized expression, the unit
+    Phoenix is finetuned on here (`common.load_target`), so predictions are
+    scored as they come out of `evaluate.py`,
   * per-gene PCC / Spearman / SSIM over cells, pooled per output cohort with
     `np.concatenate` and reduced with `np.nanmean`; the three metric functions
     are copied verbatim from the ST-Bench aggregation script.
-
-The one thing that needs a choice is the unit of the Phoenix prediction, since
-Phoenix is trained to emit `log1p(raw counts)` (it forbids library-size
-normalization) while the benchmark target is `log1p(CP100)`:
-
-    --pred-scale raw     score the prediction as it comes out of the model
-    --pred-scale cp100   expm1 -> CP100 over the run's own panel -> log1p
-
-`raw` is the default because it scores better and needs no assumption; the
-mismatch is real either way and is the reason a normalized-target finetune is
-worth having.
 
     python aggregate_stbench_sc.py --cohort breast_1 --cohort lung_1
     python aggregate_stbench_sc.py --all --write            # write .npy + csv
 """
 
 import argparse
-import json
 import os
 
 import anndata
@@ -121,7 +109,7 @@ def test_slides(bench: str) -> list[str]:
     return sorted(ids.loc[ids["fold_0"] == "test", "sample_id"].astype(str))
 
 
-def load_prediction(run: str, bench: str, slide: str, scale: str, var_names,
+def load_prediction(run: str, bench: str, slide: str, var_names,
                     run_suffix: str = ""):
     """Phoenix prediction for `slide`, in benchmark gene order and units."""
     path = f"{OUTPUTS}/runs/{run}{run_suffix}/pred_{pack_slide(slide)}.npz"
@@ -131,11 +119,6 @@ def load_prediction(run: str, bench: str, slide: str, scale: str, var_names,
         pred = z["pred"].astype(np.float64)
         genes = [str(g) for g in z["genes"]]
         cells = [str(c) for c in z["cell_id"]] if "cell_id" in z else None
-    if scale == "cp100":
-        counts = np.expm1(pred)
-        np.clip(counts, 0.0, None, out=counts)
-        total = np.maximum(counts.sum(axis=1, keepdims=True), 1e-9)
-        pred = np.log1p(counts / total * 100.0)
     pos = {g: i for i, g in enumerate(genes)}
     missing = [g for g in var_names if g not in pos]
     assert not missing, f"{bench}/{slide}: {len(missing)} HVG-200 genes not predicted: {missing[:5]}"
@@ -161,13 +144,12 @@ def main() -> None:
     parser.add_argument("--cohort", action="append", default=[],
                         help="output cohort key (repeatable); default: all")
     parser.add_argument("--all", action="store_true", help="every output cohort (the default)")
-    parser.add_argument("--pred-scale", choices=["raw", "cp100"], default="raw")
     parser.add_argument("--write", action="store_true",
                         help="write phoenix_{metric}.npy into STBENCH_SC_OUT")
     parser.add_argument("--allow-partial", action="store_true",
                         help="write a cohort even if some of its test slides are missing")
     parser.add_argument("--suffix", default="",
-                        help="appended to the model key, e.g. '_cp100'")
+                        help="appended to the model key, e.g. '_interim'")
     parser.add_argument("--run-suffix", default="",
                         help="read predictions from runs/<cohort><suffix>, e.g. '_interim'")
     args = parser.parse_args()
@@ -187,8 +169,8 @@ def main() -> None:
                 assert gt.n_vars == 200, f"{bench}/{slide}: GT has {gt.n_vars} genes"
                 labels = np.log1p(dense(gt.X).astype(np.float64))
 
-                pred, cells = load_prediction(run, bench, slide, args.pred_scale,
-                                              gt.var_names, args.run_suffix)
+                pred, cells = load_prediction(run, bench, slide, gt.var_names,
+                                              args.run_suffix)
                 if pred is None:
                     print(f"[skip] {bench}/{slide}: no Phoenix prediction yet")
                     continue

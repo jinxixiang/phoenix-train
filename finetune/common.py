@@ -6,8 +6,11 @@ and the released `nest/multi` checkpoint:
 
 - patches are 224 x 224 px at 20x (0.5 um/px), i.e. a 112 um field of view,
   centered on the cell,
-- expression is shifted-log transformed with NO library-size normalization,
-  then z-scored per gene with the cohort `stats_table`,
+- the target is `log1p(CP100)` -- counts scaled to 100 per cell over the full
+  pack panel, then log1p -- restricted to the ST-Bench HVG-200 panel and
+  z-scored per gene with the cohort `stats_table`. This is the unit ST-Bench
+  scores in (its `GT.X` is CP100 over the pack panel), so predictions need no
+  conversion. (The released Phoenix checkpoints use un-normalized log1p counts.)
 - the image encoder (H-Optimus-1 style ViT-g/14 with 4 registers) is frozen;
   its weights ship inside `flow_model.pth`.
 """
@@ -39,6 +42,12 @@ COHORT_DIR = os.environ.get("PHOENIX_COHORT_DIR", f"{PHOENIX_DIR}/data/finetune_
 WSI_DIR = os.environ.get("PHOENIX_WSI_DIR", f"{PHOENIX_DIR}/data/wsis")
 # SPATCH root (`<Platform>/<TUMOUR>/HE.tif`).
 SPATCH_DIR = os.environ.get("PHOENIX_SPATCH_DIR", f"{PHOENIX_DIR}/data/SPATCH")
+
+# ST-Bench HVG-200 panel of each benchmark cohort (= this pipeline's cohort key).
+HVG_PANEL = os.environ.get(
+    "STBENCH_SC_HVG", "data/stbench/input/storm_sc_hvg200/{cohort}/all_200genes.json"
+)
+N_HVG = 200
 
 ASSETS = os.environ.get("PHOENIX_ASSETS", f"{PHOENIX_DIR}/assets")
 OUTPUTS = os.environ.get("PHOENIX_OUTPUTS", f"{PHOENIX_DIR}/outputs")
@@ -185,6 +194,27 @@ def features_complete(cohort: str, slide_id: str) -> bool:
         return bool(np.isfinite(last).all() and np.abs(last).sum() > 0)
     except (OSError, KeyError):
         return False
+
+
+def load_target(cohort: str, slide_id: str, genes: list[str], cell_id=None) -> np.ndarray:
+    """
+    Benchmark-unit target `log1p(CP100)` of a slide, in `genes` order.
+
+    The library size is taken over the full pack panel *before* restricting to
+    `genes`, as ST-Bench does for its ground truth. With `cell_id` (a feature
+    cache's rows, possibly a `--limit` prefix) the rows are checked against the
+    pack and truncated to match.
+    """
+    with h5py.File(slide_path(cohort, slide_id), "r") as fh:
+        counts = fh["counts"][:].astype(np.float64)
+        pack_ids = fh["cell_id"][:]
+    if cell_id is not None:
+        assert np.array_equal(pack_ids[: len(cell_id)], cell_id), \
+            f"{cohort}/{slide_id}: feature cache rows != pack rows"
+        counts = counts[: len(cell_id)]
+    total = np.maximum(counts.sum(axis=1, keepdims=True), 1e-9)
+    cp100 = counts[:, gene_reindex(read_genes(cohort, slide_id), genes)] / total * 100.0
+    return np.log1p(cp100).astype(np.float32)
 
 
 def load_base_panel() -> list[str]:

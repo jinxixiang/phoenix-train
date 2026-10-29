@@ -1,26 +1,22 @@
 """
 Per-gene mean/std of the Phoenix target, computed on the training slides only.
 
-Phoenix targets are the shifted natural logarithm of raw counts with NO
-library-size normalization (Methods: Gene preprocessing), z-scored per gene.
-This reproduces the `stats_table.npz` that ships with the released checkpoints,
-for our cohort panels.
+The target is `log1p(CP100)` on the HVG-200 panel (see `common.load_target`),
+z-scored per gene. Same layout as the `stats_table.npz` that ships with the
+released checkpoints.
 
 Writes `outputs/panels/<cohort>_stats.npz`.
 """
 
-import h5py
 import numpy as np
 
 from common import (
     COHORTS,
     cell_mask,
     ensure_dir,
-    gene_reindex,
     load_panel,
     load_splits,
-    read_genes,
-    slide_path,
+    load_target,
     stats_file,
 )
 
@@ -36,13 +32,11 @@ def main(cohorts: list[str]) -> None:
         total_sq = np.zeros(len(genes), dtype=np.float64)
         n = 0
         for slide in train:
-            with h5py.File(slide_path(cohort, slide), "r") as fh:
-                counts = fh["counts"][:]
+            expr = load_target(cohort, slide, genes).astype(np.float64)
             # SPATCH cohorts are one slide: only its training folds count.
             mask = cell_mask(cohort, slide, "train")
             if mask is not None:
-                counts = counts[mask]
-            expr = np.log1p(counts[:, gene_reindex(read_genes(cohort, slide), genes)].astype(np.float64))
+                expr = expr[mask]
             total += expr.sum(0)
             total_sq += (expr**2).sum(0)
             n += len(expr)
